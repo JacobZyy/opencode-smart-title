@@ -1,86 +1,87 @@
 // lib/config.ts
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
-import { join, dirname } from 'path'
-import { homedir } from 'os'
-import { parse } from 'jsonc-parser'
-import type { PluginInput } from '@opencode-ai/plugin'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "fs";
+import { join, dirname } from "path";
+import { homedir } from "os";
+import { parse } from "jsonc-parser";
+import type { PluginInput } from "@opencode-ai/plugin";
 
 export interface PluginConfig {
-    enabled: boolean
-    debug: boolean
-    model?: string
-    updateThreshold: number
+  enabled: boolean;
+  debug: boolean;
+  model?: string;
+  language?: string;
+  updateThreshold: number;
 }
 
 const defaultConfig: PluginConfig = {
-    enabled: true,
-    debug: false,
-    updateThreshold: 1
-}
+  enabled: true,
+  debug: false,
+  updateThreshold: 1,
+};
 
-const GLOBAL_CONFIG_DIR = join(homedir(), '.config', 'opencode')
-const GLOBAL_CONFIG_PATH_JSONC = join(GLOBAL_CONFIG_DIR, 'smart-title.jsonc')
-const GLOBAL_CONFIG_PATH_JSON = join(GLOBAL_CONFIG_DIR, 'smart-title.json')
+const GLOBAL_CONFIG_DIR = join(homedir(), ".config", "opencode");
+const GLOBAL_CONFIG_PATH_JSONC = join(GLOBAL_CONFIG_DIR, "smart-title.jsonc");
+const GLOBAL_CONFIG_PATH_JSON = join(GLOBAL_CONFIG_DIR, "smart-title.json");
 
 /**
  * Searches for .opencode directory starting from current directory and going up
  * Returns the path to .opencode directory if found, null otherwise
  */
 function findOpencodeDir(startDir: string): string | null {
-    let current = startDir
-    while (current !== '/') {
-        const candidate = join(current, '.opencode')
-        if (existsSync(candidate) && statSync(candidate).isDirectory()) {
-            return candidate
-        }
-        const parent = dirname(current)
-        if (parent === current) break // Reached root
-        current = parent
+  let current = startDir;
+  while (current !== "/") {
+    const candidate = join(current, ".opencode");
+    if (existsSync(candidate) && statSync(candidate).isDirectory()) {
+      return candidate;
     }
-    return null
+    const parent = dirname(current);
+    if (parent === current) break; // Reached root
+    current = parent;
+  }
+  return null;
 }
 
 /**
  * Determines which config file to use (prefers .jsonc, falls back to .json)
  * Checks both project-level and global configs
  */
-function getConfigPaths(ctx?: PluginInput): { global: string | null, project: string | null } {
-    // Global config paths
-    let globalPath: string | null = null
-    if (existsSync(GLOBAL_CONFIG_PATH_JSONC)) {
-        globalPath = GLOBAL_CONFIG_PATH_JSONC
-    } else if (existsSync(GLOBAL_CONFIG_PATH_JSON)) {
-        globalPath = GLOBAL_CONFIG_PATH_JSON
-    }
+function getConfigPaths(ctx?: PluginInput): { global: string | null; project: string | null } {
+  // Global config paths
+  let globalPath: string | null = null;
+  if (existsSync(GLOBAL_CONFIG_PATH_JSONC)) {
+    globalPath = GLOBAL_CONFIG_PATH_JSONC;
+  } else if (existsSync(GLOBAL_CONFIG_PATH_JSON)) {
+    globalPath = GLOBAL_CONFIG_PATH_JSON;
+  }
 
-    // Project config paths (if context provided)
-    let projectPath: string | null = null
-    if (ctx?.directory) {
-        const opencodeDir = findOpencodeDir(ctx.directory)
-        if (opencodeDir) {
-            const projectJsonc = join(opencodeDir, 'smart-title.jsonc')
-            const projectJson = join(opencodeDir, 'smart-title.json')
-            if (existsSync(projectJsonc)) {
-                projectPath = projectJsonc
-            } else if (existsSync(projectJson)) {
-                projectPath = projectJson
-            }
-        }
+  // Project config paths (if context provided)
+  let projectPath: string | null = null;
+  if (ctx?.directory) {
+    const opencodeDir = findOpencodeDir(ctx.directory);
+    if (opencodeDir) {
+      const projectJsonc = join(opencodeDir, "smart-title.jsonc");
+      const projectJson = join(opencodeDir, "smart-title.json");
+      if (existsSync(projectJsonc)) {
+        projectPath = projectJsonc;
+      } else if (existsSync(projectJson)) {
+        projectPath = projectJson;
+      }
     }
+  }
 
-    return { global: globalPath, project: projectPath }
+  return { global: globalPath, project: projectPath };
 }
 
 /**
  * Creates the default configuration file with helpful comments
  */
 function createDefaultConfig(): void {
-    // Ensure the directory exists
-    if (!existsSync(GLOBAL_CONFIG_DIR)) {
-        mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true })
-    }
+  // Ensure the directory exists
+  if (!existsSync(GLOBAL_CONFIG_DIR)) {
+    mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
+  }
 
-    const configContent = `{
+  const configContent = `{
   // Enable or disable the Smart Title plugin
   "enabled": true,
 
@@ -94,67 +95,74 @@ function createDefaultConfig(): void {
   // "model": "anthropic/claude-haiku-4-5",
 
   // Update title every N idle events (default: 1)
-  "updateThreshold": 1
-}
-`
+  "updateThreshold": 1,
 
-    writeFileSync(GLOBAL_CONFIG_PATH_JSONC, configContent, 'utf-8')
+  // Optional: Force output language for titles
+  // Accepts BCP-47 tag or language name, e.g. "zh-CN", "Chinese", "日本語", "en"
+  // If not specified, the model decides based on conversation content
+  // "language": "zh-CN",
+}
+`;
+
+  writeFileSync(GLOBAL_CONFIG_PATH_JSONC, configContent, "utf-8");
 }
 
 /**
  * Loads a single config file and parses it
  */
 function loadConfigFile(configPath: string): Partial<PluginConfig> | null {
-    try {
-        const fileContent = readFileSync(configPath, 'utf-8')
-        return parse(fileContent) as Partial<PluginConfig>
-    } catch {
-        return null
-    }
+  try {
+    const fileContent = readFileSync(configPath, "utf-8");
+    return parse(fileContent) as Partial<PluginConfig>;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Loads configuration with support for both global and project-level configs
- * 
+ *
  * Config resolution order:
  * 1. Start with default config
  * 2. Merge with global config (~/.config/opencode/smart-title.jsonc)
  * 3. Merge with project config (.opencode/smart-title.jsonc) if found
- * 
+ *
  * Project config overrides global config, which overrides defaults.
- * 
+ *
  * @param ctx - Plugin input context (optional). If provided, will search for project-level config.
  * @returns Merged configuration
  */
 export function getConfig(ctx?: PluginInput): PluginConfig {
-    let config = { ...defaultConfig }
-    const configPaths = getConfigPaths(ctx)
+  let config = { ...defaultConfig };
+  const configPaths = getConfigPaths(ctx);
 
-    if (configPaths.global) {
-        const globalConfig = loadConfigFile(configPaths.global)
-        if (globalConfig) {
-            config = {
-                enabled: globalConfig.enabled ?? config.enabled,
-                debug: globalConfig.debug ?? config.debug,
-                model: globalConfig.model ?? config.model,
-                updateThreshold: globalConfig.updateThreshold ?? config.updateThreshold
-            }
-        }
-    } else {
-        createDefaultConfig()
+  if (configPaths.global) {
+    const globalConfig = loadConfigFile(configPaths.global);
+    if (globalConfig) {
+      config = {
+        enabled: globalConfig.enabled ?? config.enabled,
+        debug: globalConfig.debug ?? config.debug,
+        model: globalConfig.model ?? config.model,
+        language: globalConfig.language ?? config.language,
+        updateThreshold: globalConfig.updateThreshold ?? config.updateThreshold,
+      };
     }
+  } else {
+    createDefaultConfig();
+  }
 
-    if (configPaths.project) {
-        const projectConfig = loadConfigFile(configPaths.project)
-        if (projectConfig) {
-            config = {
-                enabled: projectConfig.enabled ?? config.enabled,
-                debug: projectConfig.debug ?? config.debug,
-                model: projectConfig.model ?? config.model,
-                updateThreshold: projectConfig.updateThreshold ?? config.updateThreshold
-            }
-        }
+  if (configPaths.project) {
+    const projectConfig = loadConfigFile(configPaths.project);
+    if (projectConfig) {
+      config = {
+        enabled: projectConfig.enabled ?? config.enabled,
+        debug: projectConfig.debug ?? config.debug,
+        model: projectConfig.model ?? config.model,
+        language: projectConfig.language ?? config.language,
+        updateThreshold: projectConfig.updateThreshold ?? config.updateThreshold,
+      };
     }
+  }
 
-    return config
+  return config;
 }

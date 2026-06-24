@@ -12,14 +12,14 @@ Auto-generates meaningful session titles for your OpenCode conversations using A
 ## Installation
 
 ```bash
-npm install @tarquinen/opencode-smart-title
+npm install @jacob-z/opencode-smart-title
 ```
 
 Add to `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "plugin": ["@tarquinen/opencode-smart-title"]
+  "plugin": ["@jacob-z/opencode-smart-title"]
 }
 ```
 
